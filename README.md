@@ -2,11 +2,11 @@
 
 by Manuel Amador and Christopher Phelan. 
 
-This respository contains code that replicates the numerical results of "Reputation and Partial Default" by Manuel Amador and Christopher Phelan. 
+This respository contains code that replicates the numerical results of ["Reputation and Partial Default"](https://manuelamador.me/files/reputationpartial.pdf) by Manuel Amador and Christopher Phelan. 
 
 ## Description
 
-The code is in Julia. The code was run using [Julia](https://julialang.org/) 1.6.1. 
+The code is in Julia. The code was run using [Julia](https://julialang.org/) 1.7.0. 
 
 
 1. The directory `src` contains the main source code. 
