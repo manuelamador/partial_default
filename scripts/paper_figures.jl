@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # # Partial Default Simulation and Plots
 
+# This runs the example in the paper ["Partial Default and Government Reputation"](https://manuelamador.me/files/reputationpartial.pdf) by Manuel Amador and Christopher Phelan. 
+
 using Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
 Pkg.instantiate() 
@@ -9,7 +11,7 @@ using Revise
 includet(joinpath(@__DIR__, "..", "src", "partial_default.jl"));
 
 
-# ## Example 
+# ## Example in the paper
 
 m = FixedHaircutsModel(
     bmin = 0.01,
@@ -17,7 +19,7 @@ m = FixedHaircutsModel(
     θn = [0.005, 0.005] 
 )
 
-sol = solve(m, c_range = BigFloat[1.002, 1.05]);
+@time sol = solve(m, c_range = BigFloat[1.002, 1.05]);
 
 sol.T
 

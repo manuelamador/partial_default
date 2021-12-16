@@ -1,4 +1,5 @@
-using Parameters
+# This file runs in Julia 1.7.0 
+
 using Roots
 using Interpolations
 using FastClosures
@@ -7,16 +8,15 @@ using DifferentialEquations
 import DifferentialEquations: solve
 using LaTeXStrings
 using Plots
+
 # Using PGF plots 
 pgfplotsx(); 
-default(labels="", lw=3, color=:black) 
+default(labels = "", lw = 3, color = :black) 
 
-DE = DifferentialEquations
-
-# The maximum range of t for the solutions of the ODE. 
+# The maximum range of t for the solutions of the O 
 const _tmax = 300.0
 
-@with_kw struct FixedHaircutsModel{T, V, S, W} 
+Base.@kwdef struct FixedHaircutsModel{T, V, S, W} 
     r::T = 0.15
     i::T = 0.01
     λ::T = 0.2
@@ -31,44 +31,46 @@ const _tmax = 300.0
 end 
 
 
+# The function h used in the paper. 
 function H(m, b, q)
-    # The function h assumed in the paper. 
-    @unpack r, i, λ, bmax = m
+    (; r, i, λ, bmax) = m
     return max((r  - (i + λ * (1  - q)) / q), 0) * (bmax - b)
 end 
 
 
-function qmin(m)
-    @unpack r, i, λ = m
-    return  (i + λ) / (r + λ) 
-end 
-
-function bigQ(m, b, c)
-    # bigQ is obtained by solving the equation cF(b, q) = c. 
-    @unpack i, y, λ, r = m
-    (c + i - y + λ)/(r - b * r + λ)
-end 
-
-
-function bigQ_prime(m, b, c)
-    # The analytical derivative of Q.
-    @unpack i, y, λ, r = m
-    (r * (c + i - y + λ))/(r - b * r + λ)^2
-end 
-
-
+# The consumption function. 
 function cF(m, b, q)
-    # The consumption function. 
-    @unpack r, i, λ, y = m
+    (; i, λ, y) = m
     return y - (i + λ) * b + q * (H(m, b, q) + λ * b)
 end 
 
 
-# The time derivative of b given a constant consumption level c. 
+# The Q(b, c) function
+# It is obtained by solving the equation cF(b, q) = c. 
+function bigQ(m, b, c)
+    (; i, y, λ, r) = m
+    return (c + i - y + λ)/(r - b * r + λ)
+end 
+
+
+# The analytical derivative of Q(b, c) as a function of b.
+function bigQ_prime(m, b, c)
+    (; i, y, λ, r) = m
+    return (r * (c + i - y + λ))/(r - b * r + λ)^2
+end 
+
+
+function qmin(m)
+    (; r, i, λ) = m
+    return  (i + λ) / (r + λ) 
+end 
+
+
+# The (time) derivative of b given a constant consumption level c. 
 bPrime(m, b, c) = H(m, b, bigQ(m, b, c))
 
 
-# The (time) derivative of Q given constant consumption c. 
+# The (time) derivative of q given constant consumption c. 
 qPrime(m, b, c) = bigQ_prime(m, b, c) * H(m, b, bigQ(m, b, c))
 
 
@@ -77,10 +79,13 @@ qPrime(m, b, c) = bigQ_prime(m, b, c) * H(m, b, bigQ(m, b, c))
 #             Solving the Delay Differential Equation system 
 ################################################################################
 
-# The DDE are written in a vector, where the elements are [ρ, b, q]. 
+# All the DDE are written in a vector, where the elements are [ρ, b, q]. 
 
 
-function get_ρn_qn(model::FixedHaircutsModel; c, t, Bn, bT, T, inv_b, h, p, atol = eps(typeof(c)))
+# Given a level of c, this function solves for the price q and reputation ρ that 
+# occur at debt Bn. This is used to compute the price and reputation after a 
+# haircut sends the debt to level to Bn. 
+function get_ρn_qn(model; c, t, Bn, bT, T, inv_b, h, p, atol = eps(typeof(c)))
     if Bn < bT 
         # before cap T 
         qn = bigQ(model, Bn, c)  # q is pinned down by constant c 
@@ -91,80 +96,94 @@ function get_ρn_qn(model::FixedHaircutsModel; c, t, Bn, bT, T, inv_b, h, p, ato
         qn = h(p, ts)[3]   # finding the qn
         ρn = one(c)  # and we know that ρn = 1
     end 
-    return (ρn = ρn, qn = qn)
+    return (; ρn, qn)
 end
 
 
-function get_summation_term(model::FixedHaircutsModel; c, ρ, b, q, h, p, t, bT, T, inv_b)
+# This function computes the summation term in the ρ'(τ) equation, equation (7)
+# in the paper. 
+# 
+# If b < bmin, it is assumed that no haircuts occur and thus the summation term is 
+# zero. 
+function get_summation_term(model; c, ρ, b, q, h, p, t, bT, T, inv_b)
     @unpack η_grid, θn, bmin = model
     acc = zero(c)
     if b > bmin  
         for (n, θ) in enumerate(θn)
             Bn = η_grid[n] * b
             Bn > h(p, t)[2] && continue
-            @unpack ρn, qn = get_ρn_qn(model; c, t, Bn, bT, T, inv_b, h, p)
+            (; ρn, qn) = get_ρn_qn(model; c, t, Bn, bT, T, inv_b, h, p)
             acc += (qn * Bn * ρ / (q * b * ρn) - 1) * θ
         end
     end 
     return acc
 end 
 
+
+# The differential equation before t
+# In this case, b' and q' are immediately obtained from the constant consumption guess
 function DDE_before_T(model, c, inv_b)
     @unpack ϵ, i, λ, δ = model
     f = @closure (du, u, h, p, t) -> begin 
-        ρ, b, = u
+        (ρ, b, _) = u  # current state
         q_prime = qPrime(model, b, c) 
         q = bigQ(model, b, c)
-        bT = model.bmax
+        bT = Inf # TODO: used to be model.bmax
         T = Inf  # we are before cap T 
-        acc = get_summation_term(model; c, ρ, b, q, h, p, t, bT, T, inv_b)
-        du[1] = ϵ - (i + λ + δ + ϵ) * ρ + ρ * (q_prime + i + λ) / q  + ρ * acc  # ρ'
-        du[2] = bPrime(model, b, c)     
-        du[3] = q_prime                                        # b'
+        sum_term = get_summation_term(model; c, ρ, b, q, h, p, t, bT, T, inv_b)
+        du[1] = ϵ - (i + λ + δ + ϵ) * ρ + ρ * (q_prime + i + λ) / q  + ρ * sum_term  # ρ'
+        du[2] = bPrime(model, b, c)  # b'    
+        du[3] = q_prime    # q'
     end 
     return f
 end
 
 
+# Solving the DDE before T, stops when ρ == 1
 function solve_DDE_before_T(model, c; tmax)  
     # getting the inverse function τ(b)
     bspan = (zero(c), model.bmax - 0.001)    
     prob_0 = ODEProblem( (u, p, t) -> 1/bPrime(model, t, c), zero(c), bspan)
-    inv_b_sol = DE.solve(prob_0, MethodOfSteps(RK4()))
+    inv_b_sol = solve(prob_0, MethodOfSteps(RK4()))
     @memoize inv_b(t) = inv_b_sol(t) 
 
-    # ρ, b system
+    # ρ', b', q'
     f = DDE_before_T(model, c, inv_b)
 
-    condition(u, _, integrator) = u[1] - 1
+    condition(u, _, integrator) = u[1] - 1  # We stop when ρ = 1
     affect!(integrator) = terminate!(integrator)
     cb = ContinuousCallback(condition, affect!)
 
     tspan = (zero(c), tmax)
     hist = (_, _, _) -> [zero(c), zero(c), zero(c)] 
     prob = DDEProblem(f, [zero(c), zero(c), bigQ(model, zero(c), c)], hist, tspan)
-    sol = DE.solve(prob, MethodOfSteps(Tsit5()), callback = cb)
+    sol = solve(prob, MethodOfSteps(Tsit5()), callback = cb)
 
     return sol, inv_b 
 end 
 
 
+# The DDE after cap T 
 function DDE_after_T(model; c, bT, T, inv_b)
-    @unpack i, λ, δ = model
+    (; i, λ, δ) = model
     # ρ', b', q'
     f = @closure (du, u, h, p, t) -> begin
         ρ, b, q, = u
-        acc = get_summation_term(model; c, ρ, b, q, h, p, t, bT, T, inv_b)
-        du[1] = zero(c)                                 # ρ' -- ρ is constant 
-        du[2] = H(model, b, q)                          # b'
-        du[3] = (- (i + λ) + q * (i + λ + δ - acc))     # q'
+        sum_term = get_summation_term(model; c, ρ, b, q, h, p, t, bT, T, inv_b)
+        du[1] = zero(c)                                   # ρ' -- ρ is constant 
+        du[2] = H(model, b, q)                            # b'
+        du[3] = (- (i + λ) + q * (i + λ + δ - sum_term))  # q'
     end 
     return f
 end 
 
 
+# Solving the complete DDE 
+#
 function solve_DDE(model, c; tmax, verbose = true, more_verbose = false)
     verbose && print(".")
+
+    # The solution before T 
     sol_before_T, inv_b = solve_DDE_before_T(model, c; tmax)
     T = sol_before_T.t[end]
 
@@ -173,7 +192,7 @@ function solve_DDE(model, c; tmax, verbose = true, more_verbose = false)
         return nothing 
     end 
     
-    # The history before T 
+    # creating the history before T 
     hist = @closure (t) -> begin
         ρ = sol_before_T(t)[1]
         b = sol_before_T(t)[2]
@@ -181,11 +200,13 @@ function solve_DDE(model, c; tmax, verbose = true, more_verbose = false)
         return [ρ, b, q]
     end
 
-    bT = sol_before_T(T)[2]  
+    bT = sol_before_T(T)[2]  # the level of debt at T
+
     f = DDE_after_T(model; c, bT, T, inv_b)
     
     qmin_ = qmin(model)
 
+    # stop if q is too large or or q is too low 
     condition(u, _, integrator) = (u[3] > 1e7 || u[3] <= qmin_)
     affect!(integrator) = terminate!(integrator)
     cb = DiscreteCallback(condition, affect!)
@@ -193,19 +214,20 @@ function solve_DDE(model, c; tmax, verbose = true, more_verbose = false)
     # Solving the ODE system after T
     tspan = (T, tmax)
     prob = DDEProblem(f, hist(T), (_, t) -> hist(t), tspan)
-    sol = DE.solve(prob, MethodOfSteps(BS3()), callback = cb)  # BS3
+    sol = solve(prob, MethodOfSteps(BS3()), callback = cb)  # BS3
 
     ρfun = @closure (t) -> (t < T ? sol_before_T(t)[1] : sol(t)[1])
     bfun = @closure (t) -> (t < T ? sol_before_T(t)[2] : sol(t)[2])
     qfun = @closure (t) -> (t < T ? bigQ(model, bfun(t), c) : sol(t)[3])    
     ρb_fun = @closure (b) -> (b < bT ? ρfun(inv_b(b)) : one(c)) 
+
     return (q = qfun, b = bfun, ρ = ρfun, T = T, bT = bT, ρb = ρb_fun, model = model, 
             ode_sols = (before_T = sol_before_T, after_T = sol, τb_before_T = inv_b)) 
 end 
 
 
 # A simple bisection -- I was having problems with find_zero and BigFloats. 
-function bisection(f, x_range; atol = eps(eltype(x_range)))
+function mybisection(f, x_range; atol = eps(eltype(x_range)))
     x1, x2 = x_range[1], x_range[2]
     f1, f2  = f(x1), f(x2)
     f1 * f2 > 0 && error("not a bracketing interval")
@@ -241,46 +263,40 @@ function find_cstar(model; tmax, c_range = [1.002, 1.05])
         end
         return out
     end 
-    return bisection(f, c_range)
+    return mybisection(f, c_range)
 end 
-
-
-function solve(model::FixedHaircutsModel; tmax = _tmax, c_range = [1.002, 1.05])
-    cstar =  find_cstar(model; tmax, c_range)
-    sol = solve_DDE(model, cstar; tmax)
-    return (sol..., cstar = cstar, tmax = tmax)
-end
 
 
 get_c(sol, t) = cF(sol.model, sol.b(t), sol.q(t))
 
 
-function _get_γs(t, model::FixedHaircutsModel, sol)
+function _get_γs(t, model, sol)
     b = sol.b(t)
     return [θ * (1 / sol.ρb(η * b) - 1) / model.δ for (η, θ) in zip(model.η_grid, model.θn)]
-end 
+end
 
-function _get_αs(t, model::FixedHaircutsModel, sol)
+
+function _get_αs(t, model, sol)
     b = sol.b(t)
     ρ = sol.ρ(t)
-    return [θ * ρ * (1 / sol.ρb(η * b) - 1)  / (1 - ρ) for 
+    return [θ * (ρ * (1 / sol.ρb(η * b) - 1)  / (1 - ρ) - 1) for 
         (η, θ) in zip(model.η_grid, model.θn)]
 end
 
 
-function _get_γ0(t, model::FixedHaircutsModel, sol)
+function _get_γ0(t, model, sol)
     return 1 - sum(_get_γs(t, model, sol))
 end 
 
-function _get_α0(t, model::FixedHaircutsModel, sol)
+function _get_α0(t, model, sol)
     @unpack b, q, ρ, ρb, ode_sols, cstar = sol 
     @unpack τb_before_T = ode_sols
     @unpack i, λ = model
-    acc = zero(cstar)
+    sum_term = zero(cstar)
     for (η, θ) in zip(model.η_grid, model.θn) 
-        acc += (q(t) - q(τb_before_T(b(t) * η)) * η) * ρ(t) * θ / ρb(η * b(t))
+        sum_term += (q(t) - q(τb_before_T(b(t) * η)) * η) * ρ(t) * θ / ρb(η * b(t))
     end 
-    return ((qPrime(model, b(t), cstar) + (i + λ) - acc ) / q(t) - (i + λ)) / (1 - ρ(t))
+    return ((qPrime(model, b(t), cstar) + (i + λ) - sum_term) / q(t) - (i + λ)) / (1 - ρ(t))
 end 
 
 
@@ -290,6 +306,12 @@ get_α0(sol, t) = _get_α0(t, sol.model, sol)
 get_γ0(sol, t) = _get_γ0(t, sol.model, sol)
 
 
+# Final solver function 
+function solve(model::FixedHaircutsModel; tmax = _tmax, c_range = [1.002, 1.05])
+    cstar =  find_cstar(model; tmax, c_range)
+    sol = solve_DDE(model, cstar; tmax)
+    return (sol..., cstar = cstar, tmax = tmax)
+end
 
 ## Plots 
 
@@ -399,9 +421,9 @@ function do_unconditional_default_probability_plots(s; maxT = 100, npoints = 200
         )
     end
     
-    unconditional_proba = [(t, ρ(t) .* θn .+ (1 - ρ(t)) .* get_αs(s, t)) for t in range(0, s.T - 0.001, length = npoints)]
+    unconditional_proba = [(t, θn .+ (1 - ρ(t)) .* get_αs(s, t)) for t in range(0, s.T - 0.001, length = npoints)]
     
-    f3 = plot(title = L"$\rho(t) \theta_n + (1 - \rho(t)) \alpha_n(t)$", xlim = (0, tmax), legend = :topright)
+    f3 = plot(title = L"$\rho(t) \theta_n + (1 - \rho(t))( \theta_n + \alpha_n(t))$", xlim = (0, tmax), legend = :topright)
     ymax = 1.0
 
     plot!(f3, [(t, (1 - ρ(t)) * get_α0(s, t)) for t in range(0, s.T - 0.0001, length = npoints) 
@@ -412,7 +434,7 @@ function do_unconditional_default_probability_plots(s; maxT = 100, npoints = 200
     for (i, sty) in zip(1:length(unconditional_proba[1][2]), (:dash, :dot))
         η = η_grid[i]
         plot!(f3, [(t, x[i]) for (t, x) in unconditional_proba if x[1] < ymax], 
-            label=L"$(\eta = %$η)$",
+            label = L"$(\eta = %$η)$",
             style = sty,
             color = :black,
             lw = 1
