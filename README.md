@@ -1,4 +1,4 @@
-# Numerical analysis for "Reputation and Partial Default" 
+# Code for "Reputation and Partial Default" 
 
 by Manuel Amador and Christopher Phelan. 
 
