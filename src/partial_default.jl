@@ -123,7 +123,7 @@ function DDE_before_T(model, c, inv_b)
         (ρ, b, _) = u  # current state
         q_prime = qPrime(model, b, c) 
         q = bigQ(model, b, c)
-        bT = Inf # TODO: used to be model.bmax
+        bT = Inf 
         T = Inf  # we are before cap T 
         sum_term = get_summation_term(model; c, ρ, b, q, h, p, t, bT, T, inv_b)
         du[1] = ϵ - (i + λ + δ + ϵ) * ρ + ρ * (q_prime + i + λ) / q  + ρ * sum_term  # ρ'

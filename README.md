@@ -6,14 +6,25 @@ This repository contains code that replicates the numerical results of ["Reputat
 
 ## Description
 
-The code is in Julia. The code was run using [Julia](https://julialang.org/) 1.7.0. 
+The code is in Julia. The code was run using [Julia](https://julialang.org/) 1.7.2. 
 
 
 1. The directory `src` contains the main source code. 
 
-2. The directory `scripts` contains the script that generates the figures presented in the paper. 
-
-   Running either `paper_figures.jl` or `paper_figures.ipynb` runs the simulation and saves the figures.  These scripts will automatically download the Julia packages that are needed. 
+2. The directory `scripts` contains the script that generates the figures shown in the paper. 
 
 3. The directory `output` contains the figures.
 
+## Running to the code
+
+Make sure you have installed Julia (a version older than 1.7.2). 
+
+Navigate to the `scripts` subdirectory in the command line and run:  
+
+    > julia paper_figures.jl 
+
+(Alternatively, you can run jupyter, and open and run the `paper_figure.ipynb` notebook.) 
+
+The script will run the simulations and generate the figures in the output directory. 
+
+The script should download and precompile the necessary packages the first time it is run (This may take some time). 
