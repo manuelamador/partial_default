@@ -3,7 +3,6 @@
 by Manuel Amador and Christopher Phelan. 
 
 
-
 This repository contains code that replicates the numerical results of ["Reputation and Partial Default"](https://manuelamador.me/files/reputationpartial.pdf) by Manuel Amador and Christopher Phelan. 
 
 ## Software requirements
