@@ -9,7 +9,8 @@ This repository contains code that replicates the numerical results of ["Reputat
 
 
 - [Julia](https://julialang.org/) version 1.7.2. 
-- The file `Project.toml` lists all of the necessary packages. 
+- The file `Project.toml` lists all of the necessary Julia packages.
+- The figures are generated using `PGFPlotsX`, a Julia package. Note that a working running `LaTeX` installation is necessary (with the `lualatex` command and the `standalone` package). See [PGFPlotsX](https://kristofferc.github.io/PGFPlotsX.jl/v1/) for details. 
   
 ## Memory and runtime requirements 
 

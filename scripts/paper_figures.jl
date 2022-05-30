@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 # # Partial Default Simulation and Plots
 
-# This runs the example in the paper ["Partial Default and Government Reputation"](https://manuelamador.me/files/reputationpartial.pdf) by Manuel Amador and Christopher Phelan. 
+# This runs the example in the paper ["Reputation and Partial Default"](https://manuelamador.me/files/reputationpartial.pdf) by Manuel Amador and Christopher Phelan. 
 
 using Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
-Pkg.instantiate() 
-using Revise
+Pkg.instantiate()
 
-includet(joinpath(@__DIR__, "..", "src", "partial_default.jl"));
+include(joinpath(@__DIR__, "..", "src", "partial_default.jl"));
 
 
 # ## Example in the paper
@@ -228,9 +227,16 @@ f4 = do_increase_in_yield_plots(sol)
 
 # ### Exporting figures
 
-savefig(f1, joinpath(@__DIR__, "..", "output", "basic_plot.pdf"))
-savefig(f2, joinpath(@__DIR__, "..", "output", "conditional_plot.pdf"))
-savefig(f3, joinpath(@__DIR__, "..", "output", "unconditional_plot.pdf"))
-savefig(f4, joinpath(@__DIR__, "..", "output", "yields_plot.pdf"))
+let fig_dir = joinpath(@__DIR__, "..", "output")
+    if isdir(fig_dir)
+        savefig(f1, joinpath(fig_dir, "basic_plot.pdf"))
+        savefig(f2, joinpath(fig_dir, "conditional_plot.pdf"))
+        savefig(f3, joinpath(fig_dir, "unconditional_plot.pdf"))
+        savefig(f4, joinpath(fig_dir, "yields_plot.pdf"))
+    else
+        println("Please make sure that the directory $fig_dir exists.")
+        error("Figures not generated -- output directory missing.")
+    end
+end
 
 

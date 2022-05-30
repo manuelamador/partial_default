@@ -139,7 +139,7 @@ function solve_DDE_before_T(model, c; tmax)
     # getting the inverse function τ(b)
     bspan = (zero(c), model.bmax - 0.001)    
     prob_0 = ODEProblem( (u, p, t) -> 1/bPrime(model, t, c), zero(c), bspan)
-    inv_b_sol = solve(prob_0, MethodOfSteps(RK4()))
+    inv_b_sol = solve(prob_0, RK4())
     @memoize inv_b(t) = inv_b_sol(t) 
 
     # ρ', b', q'
